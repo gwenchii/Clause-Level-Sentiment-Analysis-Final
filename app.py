@@ -109,12 +109,12 @@ def analyze():
         overall_sentiment = max(percentages, key=percentages.get)
 
     return render_template(
-        'analyze.html',
-        results=results,
-        overall=overall_sentiment,
-        overall_percentage=percentages.get(overall_sentiment, 0),
-        percentages=percentages
-    )
+    'analyze.html',
+    results=results,
+    overall=overall_sentiment or '',
+    overall_percentage=percentages.get(overall_sentiment, 0) if percentages else 0,
+    percentages=percentages or {}
+)
 
 #feedack page
 @app.route("/leave_a_feedback", methods=["GET", "POST"])
