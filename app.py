@@ -2,6 +2,7 @@ from flask import Flask, request, render_template, redirect, url_for
 import joblib
 import numpy as np
 import re
+import os
 
 #Discourse Markers
 tagalog_discourse_markers = r"\b(?:at|kung|hanggang|hangga’t|bagama’t|nang|o|kaya|pero|dahil\ sa|dahilan\ sa|gawa\ ng|sapagka’t|upang|sakali|noon|sa\ sandali|magbuhat|magmula|bagaman|maliban|bukod|dangan|dahil|yayamang|kapag|pagka|tuwing|matapos|pagkatapos|porke|maski|imbis|sa\ lugar|sa\ halip|miyentras|para|saka|haba|samantala|bago|kundi)\b"
@@ -28,6 +29,7 @@ def extract_discourse_markers(text):
 
 #load model
 loaded = joblib.load('models/taglish_sentiment_model.pkl', mmap_mode=None)
+print("File exists:", os.path.exists('models/taglish_sentiment_model.pkl'))
 
 if isinstance(loaded, dict):
     vectorizer = loaded.get("vectorizer")
@@ -161,9 +163,6 @@ def leave_a_feedback():
 @app.route('/about_tool')
 def about():
     return render_template('about.html')
-
-
-import os
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
