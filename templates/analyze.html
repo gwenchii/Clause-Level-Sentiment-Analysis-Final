@@ -49,9 +49,9 @@
                                 {{ clause.sentiment | capitalize }}
                             </td>
                             <td>
-                                Positive: {{ "%.2f"|format(clause.probabilities.positive) }}% <br>
-                                Neutral: {{ "%.2f"|format(clause.probabilities.neutral) }}% <br>
-                                Negative: {{ "%.2f"|format(clause.probabilities.negative) }}%
+                                Positive: {{ "%.2f"|format(clause.probabilities['positive']) }}%<br>
+                                Neutral: {{ "%.2f"|format(clause.probabilities['neutral']) }}%<br>
+                                Negative: {{ "%.2f"|format(clause.probabilities['negative']) }}%
                             </td>
                         </tr>
                     {% endfor %}
