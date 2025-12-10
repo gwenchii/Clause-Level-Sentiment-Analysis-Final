@@ -51,9 +51,6 @@ def analyze():
 
     if request.method == 'POST':
         user_input = request.form.get('user_input', '')
-        import re
-        #split sentences
-        import re
         sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s*', user_input) if s.strip()]
 
         sentiment_scores = {'positive': 0, 'neutral': 0, 'negative': 0}
@@ -66,13 +63,14 @@ def analyze():
             sentiment_scores_sentence = {'positive': 0, 'neutral': 0, 'negative': 0}
 
             for clause in clauses:
-                if vectorizer:
-                    X_clause = vectorizer.transform([clause])
-                else:
-                    X_clause = [clause]
-
-                prob_clause = clf.predict_proba(X_clause)[0]
-                pred_clause = clf.classes_[prob_clause.argmax()]
+                try:
+                    X_clause = [clause] if vectorizer is None else vectorizer.transform([clause])
+                    prob_clause = clf.predict_proba(X_clause)[0]
+                    pred_clause = clf.classes_[prob_clause.argmax()]
+                except Exception as e:
+                    print("Prediction error for clause:", clause, e)
+                    prob_clause = [0, 0, 0]
+                    pred_clause = "neutral"
 
                 sentiment_scores_sentence['positive'] += prob_clause[list(clf.classes_).index('positive')]
                 sentiment_scores_sentence['neutral']  += prob_clause[list(clf.classes_).index('neutral')]
@@ -90,6 +88,7 @@ def analyze():
                     'probabilities': prob_dict
                 })
 
+            # Calculate sentence-level percentages
             total_sentence = sum(sentiment_scores_sentence.values())
             percentages_sentence = {
                 k: round((v/total_sentence)*100, 2) if total_sentence > 0 else 0
@@ -108,13 +107,16 @@ def analyze():
                 'percentages': percentages_sentence
             })
 
+            # Update overall scores
             for k in sentiment_scores:
                 sentiment_scores[k] += sentiment_scores_sentence[k]
 
+        # Calculate overall percentages
         total = sum(sentiment_scores.values())
         percentages = {k: round((v/total)*100, 2) if total>0 else 0 for k,v in sentiment_scores.items()}
         overall_sentiment = max(percentages, key=percentages.get)
         overall_percent = percentages[overall_sentiment]
+
     return render_template(
         'analyze.html',
         results=results,
