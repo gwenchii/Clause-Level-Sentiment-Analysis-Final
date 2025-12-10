@@ -54,8 +54,14 @@ def analyze():
     if request.method == 'POST':
         user_input = request.form.get('user_input', '')
 
+        # Simple preprocessing (match what the model expects)
+        def preprocess(text):
+            return text.lower().strip()
+
+        # Split input into sentences
         sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s*', user_input) if s.strip()]
 
+        # Initialize overall sentiment scores
         sentiment_scores = {c: 0 for c in clf.classes_}
 
         for sentence in sentences:
@@ -66,31 +72,32 @@ def analyze():
             sentiment_scores_sentence = {c: 0 for c in clf.classes_}
 
             for clause in clauses:
-                X_clause = [clause] if vectorizer is None else vectorizer.transform([clause])
+                clause_clean = preprocess(clause)
+                
+                # Transform using vectorizer if available
+                X_clause = vectorizer.transform([clause_clean]) if vectorizer else [clause_clean]
+
+                # Get prediction probabilities
                 prob_clause = clf.predict_proba(X_clause)[0]
                 pred_clause = clf.classes_[prob_clause.argmax()]
 
-                # Sum probabilities
+                # Sum probabilities for sentence
                 for i, c in enumerate(clf.classes_):
                     sentiment_scores_sentence[c] += prob_clause[i]
 
-                # Store probabilities per clause
-                prob_dict = {
-                    'positive': round(prob_clause[list(clf.classes_).index('positive')]*100, 2) if 'positive' in clf.classes_ else 0,
-                    'neutral': round(prob_clause[list(clf.classes_).index('neutral')]*100, 2) if 'neutral' in clf.classes_ else 0,
-                    'negative': round(prob_clause[list(clf.classes_).index('negative')]*100, 2) if 'negative' in clf.classes_ else 0
-                }
+                # Build probabilities dict for display, handling missing classes
+                prob_dict = {c: round(prob_clause[i]*100, 2) for i, c in enumerate(clf.classes_)}
+                
                 clause_results.append({
                     'clause': clause,
                     'sentiment': pred_clause,
                     'probabilities': prob_dict
                 })
 
-            # Calculate percentages per sentence
+            # Compute sentence percentages
             total_sentence = sum(sentiment_scores_sentence.values())
-            percentages_sentence = {c: round((v / total_sentence) * 100, 2) if total_sentence > 0 else 0
-                                    for c, v in sentiment_scores_sentence.items()}
-
+            percentages_sentence = {k: round((v/total_sentence)*100, 2) if total_sentence > 0 else 0
+                                    for k, v in sentiment_scores_sentence.items()}
             overall_sentence = max(percentages_sentence, key=percentages_sentence.get)
             overall_percent_sentence = percentages_sentence[overall_sentence]
 
@@ -103,14 +110,13 @@ def analyze():
                 'percentages': percentages_sentence
             })
 
-            # Add sentence scores to total
-            for c in sentiment_scores:
-                sentiment_scores[c] += sentiment_scores_sentence[c]
+            # Add sentence scores to overall
+            for k in sentiment_scores:
+                sentiment_scores[k] += sentiment_scores_sentence[k]
 
-        # Overall percentages
+        # Compute overall percentages
         total = sum(sentiment_scores.values())
-        percentages = {c: round((v / total) * 100, 2) if total > 0 else 0
-                       for c, v in sentiment_scores.items()}
+        percentages = {k: round((v/total)*100, 2) if total > 0 else 0 for k, v in sentiment_scores.items()}
         overall_sentiment = max(percentages, key=percentages.get)
         overall_percent = percentages[overall_sentiment]
 
@@ -129,20 +135,19 @@ from datetime import datetime
 def leave_a_feedback():
     global feedbacks
     if request.method == "POST":
-        user_input = request.form.get("user_input")
+        user_input = request.form.get("user_input", "")
 
-        if vectorizer is not None:
-            X = vectorizer.transform([user_input])
-        else:
-            X = [user_input]
+        # Transform input if vectorizer exists
+        X = vectorizer.transform([user_input]) if vectorizer else [user_input]
 
+        # Predict sentiment
         sentiment = clf.predict(X)[0]
         probs = clf.predict_proba(X)[0]
-        prob_dict = {
-            'positive': round(probs[list(clf.classes_).index('positive')] * 100, 2),
-            'neutral': round(probs[list(clf.classes_).index('neutral')] * 100, 2),
-            'negative': round(probs[list(clf.classes_).index('negative')] * 100, 2),
-        }
+
+        # Dynamically build probabilities dict from model classes
+        prob_dict = {c: round(probs[i] * 100, 2) for i, c in enumerate(clf.classes_)}
+
+        # Insert feedback
         feedbacks.insert(0, {
             "text": user_input,
             "sentiment": sentiment,
