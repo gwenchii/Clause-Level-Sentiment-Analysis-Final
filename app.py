@@ -75,7 +75,11 @@ def analyze():
                     sentiment_scores_sentence[c] += prob_clause[i]
 
                 # Store probabilities per clause
-                prob_dict = {c: round(prob_clause[i] * 100, 2) for i, c in enumerate(clf.classes_)}
+                prob_dict = {
+                    'positive': round(prob_clause[list(clf.classes_).index('positive')]*100, 2) if 'positive' in clf.classes_ else 0,
+                    'neutral': round(prob_clause[list(clf.classes_).index('neutral')]*100, 2) if 'neutral' in clf.classes_ else 0,
+                    'negative': round(prob_clause[list(clf.classes_).index('negative')]*100, 2) if 'negative' in clf.classes_ else 0
+                }
                 clause_results.append({
                     'clause': clause,
                     'sentiment': pred_clause,
