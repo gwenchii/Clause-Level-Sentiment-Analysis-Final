@@ -1,8 +1,8 @@
 from flask import Flask, request, render_template, redirect, url_for
 import joblib
-import numpy as np
 import re
 import os
+from datetime import datetime
 
 #Discourse Markers
 tagalog_discourse_markers = r"\b(?:at|kung|hanggang|hangga’t|bagama’t|nang|o|kaya|pero|dahil\ sa|dahilan\ sa|gawa\ ng|sapagka’t|upang|sakali|noon|sa\ sandali|magbuhat|magmula|bagaman|maliban|bukod|dangan|dahil|yayamang|kapag|pagka|tuwing|matapos|pagkatapos|porke|maski|imbis|sa\ lugar|sa\ halip|miyentras|para|saka|haba|samantala|bago|kundi)\b"
@@ -45,6 +45,7 @@ feedbacks = []
 
 #analyze page
 @app.route('/', methods=['GET', 'POST'])
+@app.route('/', methods=['GET', 'POST'])
 def analyze():
     results = []
     overall_sentiment = None
@@ -54,47 +55,36 @@ def analyze():
     if request.method == 'POST':
         user_input = request.form.get('user_input', '')
 
-        # Simple preprocessing (match what the model expects)
-        def preprocess(text):
-            return text.lower().strip()
-
-        # Split input into sentences
         sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s*', user_input) if s.strip()]
-
-        # Initialize overall sentiment scores
-        sentiment_scores = {c: 0 for c in clf.classes_}
+        sentiment_scores = {c.lower(): 0 for c in clf.classes_}
 
         for sentence in sentences:
             markers_found = extract_discourse_markers(sentence)
             clauses = split_into_clauses(sentence)
 
             clause_results = []
-            sentiment_scores_sentence = {c: 0 for c in clf.classes_}
+            sentiment_scores_sentence = {c.lower(): 0 for c in clf.classes_}
 
             for clause in clauses:
                 clause_clean = preprocess(clause)
-                
-                # Transform using vectorizer if available
                 X_clause = vectorizer.transform([clause_clean]) if vectorizer else [clause_clean]
 
-                # Get prediction probabilities
                 prob_clause = clf.predict_proba(X_clause)[0]
-                pred_clause = clf.classes_[prob_clause.argmax()]
+                pred_clause = clf.classes_[prob_clause.argmax()].lower()
 
-                # Sum probabilities for sentence
+                # Sum probabilities
                 for i, c in enumerate(clf.classes_):
-                    sentiment_scores_sentence[c] += prob_clause[i]
+                    sentiment_scores_sentence[c.lower()] += prob_clause[i]
 
-                # Build probabilities dict for display, handling missing classes
-                prob_dict = {c: round(prob_clause[i]*100, 2) for i, c in enumerate(clf.classes_)}
-                
+                # Build probabilities dict
+                prob_dict = {c.lower(): round(prob_clause[i]*100, 2) for i, c in enumerate(clf.classes_)}
                 clause_results.append({
                     'clause': clause,
                     'sentiment': pred_clause,
                     'probabilities': prob_dict
                 })
 
-            # Compute sentence percentages
+            # Sentence-level percentages
             total_sentence = sum(sentiment_scores_sentence.values())
             percentages_sentence = {k: round((v/total_sentence)*100, 2) if total_sentence > 0 else 0
                                     for k, v in sentiment_scores_sentence.items()}
@@ -110,44 +100,34 @@ def analyze():
                 'percentages': percentages_sentence
             })
 
-            # Add sentence scores to overall
+            # Add to overall
             for k in sentiment_scores:
                 sentiment_scores[k] += sentiment_scores_sentence[k]
 
-        # Compute overall percentages
         total = sum(sentiment_scores.values())
         percentages = {k: round((v/total)*100, 2) if total > 0 else 0 for k, v in sentiment_scores.items()}
         overall_sentiment = max(percentages, key=percentages.get)
-        overall_percent = percentages[overall_sentiment]
 
     return render_template(
         'analyze.html',
         results=results,
         overall=overall_sentiment,
-        overall_percentage=overall_percent,
+        overall_percentage=percentages.get(overall_sentiment, 0),
         percentages=percentages
     )
 
 #feedack page
-from datetime import datetime
-
 @app.route("/leave_a_feedback", methods=["GET", "POST"])
 def leave_a_feedback():
     global feedbacks
     if request.method == "POST":
         user_input = request.form.get("user_input", "")
-
-        # Transform input if vectorizer exists
         X = vectorizer.transform([user_input]) if vectorizer else [user_input]
 
-        # Predict sentiment
-        sentiment = clf.predict(X)[0]
+        sentiment = clf.predict(X)[0].lower()
         probs = clf.predict_proba(X)[0]
+        prob_dict = {c.lower(): round(probs[i]*100, 2) for i, c in enumerate(clf.classes_)}
 
-        # Dynamically build probabilities dict from model classes
-        prob_dict = {c: round(probs[i] * 100, 2) for i, c in enumerate(clf.classes_)}
-
-        # Insert feedback
         feedbacks.insert(0, {
             "text": user_input,
             "sentiment": sentiment,
