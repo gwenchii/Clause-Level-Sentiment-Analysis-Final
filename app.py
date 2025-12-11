@@ -3,6 +3,7 @@ import joblib
 import re
 import os
 from datetime import datetime
+import numpy as np
 
 #Discourse Markers
 tagalog_discourse_markers = r"\b(?:at|kung|hanggang|hangga’t|bagama’t|nang|o|kaya|pero|dahil\ sa|dahilan\ sa|gawa\ ng|sapagka’t|upang|sakali|noon|sa\ sandali|magbuhat|magmula|bagaman|maliban|bukod|dangan|dahil|yayamang|kapag|pagka|tuwing|matapos|pagkatapos|porke|maski|imbis|sa\ lugar|sa\ halip|miyentras|para|saka|haba|samantala|bago|kundi)\b"
