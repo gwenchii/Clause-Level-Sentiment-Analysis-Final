@@ -29,7 +29,6 @@ def extract_discourse_markers(text):
 
 #load model
 loaded = joblib.load('models/taglish_sentiment_model.pkl', mmap_mode=None)
-print("File exists:", os.path.exists('models/taglish_sentiment_model.pkl'))
 
 if isinstance(loaded, dict):
     vectorizer = loaded.get("vectorizer")
@@ -45,38 +44,50 @@ feedbacks = []
 
 #analyze page
 @app.route('/', methods=['GET', 'POST'])
-@app.route('/', methods=['GET', 'POST'])
 def analyze():
     results = []
     overall_sentiment = None
-    percentages = None
-    overall_percent = None
+    percentages = {}
+    overall_percent = 0
 
     if request.method == 'POST':
-        user_input = request.form.get('user_input', '')
+        user_input = request.form.get('user_input', '').strip()
+        if not user_input:
+            return render_template('analyze.html', results=[], overall=None, overall_percentage=0, percentages={})
+
+        def preprocess(text):
+            return text.lower().strip()
 
         sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s*', user_input) if s.strip()]
-        sentiment_scores = {c.lower(): 0 for c in clf.classes_}
+        sentiment_scores = {c: 0 for c in clf.classes_}
 
         for sentence in sentences:
             markers_found = extract_discourse_markers(sentence)
             clauses = split_into_clauses(sentence)
 
             clause_results = []
-            sentiment_scores_sentence = {c.lower(): 0 for c in clf.classes_}
+            sentiment_scores_sentence = {c: 0 for c in clf.classes_}
 
             for clause in clauses:
                 clause_clean = preprocess(clause)
-                X_clause = vectorizer.transform([clause_clean]) if vectorizer else [clause_clean]
 
-                prob_clause = clf.predict_proba(X_clause)[0]
-                pred_clause = clf.classes_[prob_clause.argmax()].lower()
+                if vectorizer:
+                    X_clause = vectorizer.transform([clause_clean])
+                else:
 
-                # Sum probabilities
+                    X_clause = [clause_clean]
+
+                try:
+                    prob_clause = clf.predict_proba(X_clause)[0]
+                    pred_clause = clf.classes_[prob_clause.argmax()]
+                except Exception as e:
+
+                    prob_clause = np.array([0 for _ in clf.classes_])
+                    pred_clause = 'neutral'
+                    
                 for i, c in enumerate(clf.classes_):
-                    sentiment_scores_sentence[c.lower()] += prob_clause[i]
+                    sentiment_scores_sentence[c] += prob_clause[i]
 
-                # Build probabilities dict
                 prob_dict = {c.lower(): round(prob_clause[i]*100, 2) for i, c in enumerate(clf.classes_)}
                 clause_results.append({
                     'clause': clause,
@@ -84,10 +95,9 @@ def analyze():
                     'probabilities': prob_dict
                 })
 
-            # Sentence-level percentages
             total_sentence = sum(sentiment_scores_sentence.values())
-            percentages_sentence = {k: round((v/total_sentence)*100, 2) if total_sentence > 0 else 0
-                                    for k, v in sentiment_scores_sentence.items()}
+            percentages_sentence = {k.lower(): round((v/total_sentence)*100, 2) if total_sentence>0 else 0
+                                    for k,v in sentiment_scores_sentence.items()}
             overall_sentence = max(percentages_sentence, key=percentages_sentence.get)
             overall_percent_sentence = percentages_sentence[overall_sentence]
 
@@ -105,16 +115,23 @@ def analyze():
                 sentiment_scores[k] += sentiment_scores_sentence[k]
 
         total = sum(sentiment_scores.values())
-        percentages = {k: round((v/total)*100, 2) if total > 0 else 0 for k, v in sentiment_scores.items()}
-        overall_sentiment = max(percentages, key=percentages.get)
+        if total > 0:
+            percentages = {k.lower(): round((v/total)*100, 2) for k,v in sentiment_scores.items()}
+            overall_sentiment = max(percentages, key=percentages.get)
+            overall_percent = percentages[overall_sentiment]
+        else:
+            percentages = {'positive': 0, 'neutral': 0, 'negative': 0}
+            overall_sentiment = 'neutral'
+            overall_percent = 0
 
     return render_template(
-    'analyze.html',
-    results=results,
-    overall=overall_sentiment or '',
-    overall_percentage=percentages.get(overall_sentiment, 0) if percentages else 0,
-    percentages=percentages or {}
-)
+        'analyze.html',
+        results=results,
+        overall=overall_sentiment or 'neutral',
+        overall_percentage=overall_percent or 0,
+        percentages=percentages or {'positive': 0, 'neutral': 0, 'negative': 0}
+    )
+
 
 #feedack page
 @app.route("/leave_a_feedback", methods=["GET", "POST"])
